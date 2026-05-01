@@ -9,42 +9,42 @@ The following diagram illustrates the flow of data through the system, highlight
 ```mermaid
 flowchart TD
     %% Frontend Components
-    subgraph Frontend [React Dashboard (Vite + Tailwind CSS)]
+    subgraph Frontend ["React Dashboard (Vite + Tailwind CSS)"]
         UI[Live Incident Feed]
         Detail[Incident Detail & RCA Form]
         DL[NoSQL Data Lake Viewer]
     end
 
     %% Backend Components
-    subgraph Backend [Go High-Throughput API]
-        RL[Token Bucket Rate Limiter\n12,000 req/sec]
-        Ingest[POST /api/v1/signals]
-        Buffer((Bounded Channel Buffer\nCapacity: 20,000))
-        WP[Worker Pool\n100 Goroutines]
-        DB_Debouncer[RWMutex Debouncer\n10s Window]
-        StateMachine[Strict State Machine\nWorkflow Engine]
+    subgraph Backend ["Go High-Throughput API"]
+        RL["Token Bucket Rate Limiter (12k/sec)"]
+        Ingest["POST /api/v1/signals"]
+        Buffer(("Bounded Channel Buffer (20k)"))
+        WP["Worker Pool (100 Workers)"]
+        DB_Debouncer["RWMutex Debouncer (10s window)"]
+        StateMachine["Strict State Machine"]
     end
 
     %% Infrastructure
     subgraph Infrastructure [Docker Compose]
-        PG[(PostgreSQL\nStructured Work Items & RCAs)]
-        Mongo[(MongoDB\nTime-Series Raw Signals)]
-        Redis[(Redis\nCaching Layer)]
+        PG[("PostgreSQL (Structured)")]
+        Mongo[("MongoDB (Raw Signals)")]
+        Redis[("Redis (Caching)")]
     end
 
     %% Ingestion Flow
-    Traffic((High-Volume\nError Signals)) --> RL
+    Traffic((High-Volume Signals)) --> RL
     RL -->|Passes Limit| Ingest
-    RL -.->|Exceeds Limit| 429[HTTP 429 Too Many Requests]
-    Ingest -->|Non-blocking Push| Buffer
-    Ingest -.->|Immediate Ack| 202[HTTP 202 Accepted]
-    Buffer -->|Consume| WP
+    RL -.->|Exceeded| 429[HTTP 429]
+    Ingest -->|Push| Buffer
+    Ingest -.->|Ack| 202[HTTP 202]
+    Buffer --> WP
     
     %% Processing Flow
     WP -->|Insert All| Mongo
     WP --> DB_Debouncer
-    DB_Debouncer -->|First Signal in 10s| PG
-    DB_Debouncer -.->|Duplicate| Dropped((Debounced / Discarded))
+    DB_Debouncer -->|First Signal| PG
+    DB_Debouncer -.->|Duplicate| Dropped((Dropped))
 
     %% Frontend Integrations
     UI <-->|REST API| Backend
